@@ -6,41 +6,58 @@
 #include <ArduinoJson.h>
 #include "motor_controller.h"
 #include <vector>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
-//
-// WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
-//            or another board which has PSRAM enabled
-//
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// 'wifi_icon', 12x12px
+const unsigned char wifi_icon [] = {
+	0x00, 0xf0, 0x03, 0x80, 0x0e, 0x00, 0x18, 0x30, 0x30, 0xe0, 0x61, 0x80, 0x47, 0x00, 0xc4, 0x30, 
+	0x8c, 0xe0, 0x88, 0x80, 0x99, 0xb0, 0x91, 0x30};
 
 // Select camera model
-//#define CAMERA_MODEL_WROVER_KIT
-//#define CAMERA_MODEL_ESP_EYE
-//#define CAMERA_MODEL_M5STACK_PSRAM
-//#define CAMERA_MODEL_M5STACK_WIDE
-//#define CAMERA_MODEL_AI_THINKER
+// #define CAMERA_MODEL_WROVER_KIT
+// #define CAMERA_MODEL_ESP_EYE
+// #define CAMERA_MODEL_M5STACK_PSRAM
+// #define CAMERA_MODEL_M5STACK_WIDE
+// #define CAMERA_MODEL_AI_THINKER
 #define CAMERA_MODEL_XIAO_ESP32S3
-
 
 #include "camera_pins.h"
 #include "esp32-hal-ledc.h"
 
 const uint32_t pwm_frequency = 15000;
-
 const uint8_t pwm_resolution = 8;
-
-// const uint8_t pwm_channel = 0
-
-bool bFlashLed = false;
 
 float joystick_x = 0;
 float joystick_y = 0;
 
-int val = 0;
-int prev_val = -1;
-
 void startCameraServer();
 
 motor_controller controller;
+
+void initTextStyle()
+{
+    display.setTextSize(1);      // Normal 1:1 pixel scale
+    display.setTextColor(WHITE); // Draw white text
+    display.setCursor(0, 16);     // Start at top-left corner
+    display.cp437(true);         // Use full 256 char 'Code Page 437' font
+}
+
+void printLineToScreen(const char* str, int size)
+{
+    for (int16_t i = 0; i < size; i++)
+        display.write(str[i]);
+    
+    display.write('\n');
+    display.display();
+}
 
 void setup()
 {
@@ -48,17 +65,20 @@ void setup()
     Serial.setDebugOutput(true);
     Serial.println();
 
-    //pinMode(A0, OUTPUT);
-    //pinMode(A1, OUTPUT);
-    //pinMode(A2, OUTPUT);
-    //pinMode(A3, OUTPUT);
+    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+    {
+        Serial.println(F("SSD1306 allocation failed"));
+    }
 
-    
+    display.clearDisplay();
+    display.display();
+    initTextStyle();
+
     ledcSetup(A0, pwm_frequency, pwm_resolution);
     ledcSetup(A1, pwm_frequency, pwm_resolution);
     ledcSetup(A2, pwm_frequency, pwm_resolution);
     ledcSetup(A3, pwm_frequency, pwm_resolution);
-
 
     ledcAttachPin(A0, A0);
     ledcAttachPin(A1, A1);
@@ -73,18 +93,16 @@ void setup()
 
     delay(7000);
 
-
     if (!SPIFFS.begin(true))
     {
-      Serial.println("An Error has occurred while mounting SPIFFS");
-      return;
+        Serial.println("An Error has occurred while mounting SPIFFS");
+        return;
     }
 
     const char *ssid = "bvd23";
     const char *key = "5164g77r8c";
     const char *responderName = "espcam";
 
-    
     File configFile = SPIFFS.open("/config.json", "r");
     DynamicJsonDocument doc(1024);
     if (!configFile)
@@ -133,7 +151,7 @@ void setup()
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
-    //init with high specs to pre-allocate larger buffers
+    // init with high specs to pre-allocate larger buffers
     if (psramFound())
     {
         config.frame_size = FRAMESIZE_UXGA;
@@ -161,14 +179,14 @@ void setup()
     }
 
     sensor_t *s = esp_camera_sensor_get();
-    //initial sensors are flipped vertically and colors are a bit saturated
+    // initial sensors are flipped vertically and colors are a bit saturated
     if (s->id.PID == OV3660_PID)
     {
-        s->set_vflip(s, 1);       //flip it back
-        s->set_brightness(s, 1);  //up the blightness just a bit
-        s->set_saturation(s, -2); //lower the saturation
+        s->set_vflip(s, 1);       // flip it back
+        s->set_brightness(s, 1);  // up the blightness just a bit
+        s->set_saturation(s, -2); // lower the saturation
     }
-    //drop down frame size for higher initial frame rate
+    // drop down frame size for higher initial frame rate
     s->set_framesize(s, FRAMESIZE_QVGA);
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
@@ -178,17 +196,23 @@ void setup()
 
     WiFi.begin(ssid, key);
 
-    while(WiFi.status() != WL_CONNECTED)
+    while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
         Serial.print(".");
-    } 
+    }
 
     digitalWrite(BUILTIN_LED, LOW);
     Serial.println("");
     Serial.println("WiFi connected");
     IPAddress localIp = WiFi.localIP();
     Serial.println(localIp);
+
+    display.drawBitmap(112, 0, wifi_icon, 12, 12, WHITE);
+
+    printLineToScreen("WiFi CONNECTED", 15);
+    printLineToScreen("", 0);
+    printLineToScreen(localIp.toString().c_str(), localIp.toString().length());
 
     int responderStarted = 0;
     if (!MDNS.begin(responderName))
@@ -220,25 +244,15 @@ void setup()
 
 void loop()
 {
-  /*
-    if (bFlashLed)
-    {
-    	Serial.println("flashing LED...");
-    	digitalWrite(BUILTIN_LED, LOW);
-        delay(1000);
-    	digitalWrite(BUILTIN_LED, HIGH);
-        bFlashLed = false;
-    }*/
-
     if (controller.is_input_changed(joystick_x, joystick_y))
     {
         controller.input2(joystick_x, joystick_y);
-        
+
         ledcWrite(A0, controller.RIn1_speed);
         ledcWrite(A1, controller.RIn2_speed);
         ledcWrite(A2, controller.LIn2_speed);
         ledcWrite(A3, controller.LIn1_speed);
-       
+
         Serial.print("Lin1 ");
         Serial.print(controller.LIn1_speed);
         Serial.print(", Lin2 ");
@@ -247,5 +261,5 @@ void loop()
         Serial.print(controller.RIn1_speed);
         Serial.print(", Rin2 ");
         Serial.println(controller.RIn2_speed);
-    }    
+    }
 }

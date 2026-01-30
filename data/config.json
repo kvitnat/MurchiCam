@@ -1,7 +1,5 @@
-[
-	{
-		"ssid": "a52",
-		"key": "nppe4410",
-		"mDNS": "espcam"
-	}
-]
+{
+	"ssid": "a52",
+	"key": "nppe4410",
+	"mDNS": "espcam"
+}
