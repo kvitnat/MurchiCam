@@ -38,7 +38,7 @@
 #define IDX_BUFLEN 40960//32768
 char index_handler_buffer[IDX_BUFLEN];
 
-extern bool bFlashLed;
+bool bFlashLed;
 extern int val;
 
 extern float joystick_x;

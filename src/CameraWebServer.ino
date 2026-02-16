@@ -32,15 +32,15 @@ const unsigned char wifi_icon [] = {
 #include "camera_pins.h"
 #include "esp32-hal-ledc.h"
 
-const uint32_t pwm_frequency = 15000;
-const uint8_t pwm_resolution = 8;
+
 
 float joystick_x = 0;
 float joystick_y = 0;
 
 void startCameraServer();
 
-motor_controller controller;
+motion_controller m_controller;
+driver_controller d_controller;
 
 void initTextStyle()
 {
@@ -75,16 +75,8 @@ void setup()
     display.display();
     initTextStyle();
 
-    ledcSetup(A0, pwm_frequency, pwm_resolution);
-    ledcSetup(A1, pwm_frequency, pwm_resolution);
-    ledcSetup(A2, pwm_frequency, pwm_resolution);
-    ledcSetup(A3, pwm_frequency, pwm_resolution);
-
-    ledcAttachPin(A0, A0);
-    ledcAttachPin(A1, A1);
-    ledcAttachPin(A2, A2);
-    ledcAttachPin(A3, A3);
-
+    d_controller.init_driver_pins();
+    
     pinMode(BUILTIN_LED, OUTPUT);
     digitalWrite(BUILTIN_LED, LOW);
     delay(1000);
@@ -244,22 +236,24 @@ void setup()
 
 void loop()
 {
-    if (controller.is_input_changed(joystick_x, joystick_y))
+    if (m_controller.is_input_changed(joystick_x, joystick_y))
     {
-        controller.input2(joystick_x, joystick_y);
+        // calculate speed of each wheel 
+        m_controller.input(joystick_x, joystick_y);
 
-        ledcWrite(A0, controller.RIn1_speed);
-        ledcWrite(A1, controller.RIn2_speed);
-        ledcWrite(A2, controller.LIn2_speed);
-        ledcWrite(A3, controller.LIn1_speed);
+        // feed calculated values into driver controller
+        d_controller.update_wheels_speed(m_controller.get_left(), m_controller.get_right());
 
-        Serial.print("Lin1 ");
-        Serial.print(controller.LIn1_speed);
-        Serial.print(", Lin2 ");
-        Serial.print(controller.LIn2_speed);
-        Serial.print(", Rin1 ");
-        Serial.print(controller.RIn1_speed);
-        Serial.print(", Rin2 ");
-        Serial.println(controller.RIn2_speed);
+        if (d_controller.needs_starting_voltage())
+        {
+            d_controller.calculate_driver_values();
+            d_controller.write_values_to_driver();
+            delay(200);
+        }
+
+        d_controller.calculate_driver_values();
+        d_controller.write_values_to_driver();
+        
+        Serial.print(d_controller.get_debug_info());
     }
 }
