@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Robot Controller</title>
+    <style>
+        :root {
+            --bg-color: #0B192C; /* Dark Blue */
+            --accent-color: #FF8C00; /* Orange */
+            --white: #FFFFFF;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--white);
+            font-family: sans-serif;
+            touch-action: none; 
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: var(--white);
+            border: 2px solid var(--white);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        .btn:active { transform: scale(0.95); }
+
+        .ui-btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: 2px solid var(--white);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .ui-btn.secondary {
+            background-color: transparent;
+            border-color: var(--white);
+        }
+
+        .video-feed {
+            background-color: #000;
+            border: 2px solid var(--accent-color);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        #robot-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .fps-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #00FF00; /* Green text */
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            pointer-events: none; /* Allows clicks to pass through if needed */
+            z-index: 30;
+            display: none; /* Hidden until stream starts */
+        }
+
+        /* --- Joystick Base Classes --- */
+        .joystick-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+        }
+
+        .joystick-thumb {
+            width: 50px;
+            height: 50px;
+            background-color: var(--accent-color);
+            border: 3px solid var(--white);
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            transition: transform 0.15s ease-out;
+            cursor: grab;
+            touch-action: none;
+        }
+        .joystick-thumb.dragging {
+            transition: none;
+            cursor: grabbing;
+        }
+
+        /* --- LANDSCAPE LAYOUT --- */
+        #landscape-container { display: none; }
+        
+        @media (orientation: landscape) {
+            #portrait-container { display: none !important; }
+            #landscape-container {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                height: 100dvh;
+                padding: 10px;
+                box-sizing: border-box;
+            }
+
+            .left-panel {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-around;
+                align-items: center;
+                height: 100%;
+                width: 20%;
+            }
+
+            .slider-vertical { width: 30px; height: 50%; }
+
+            .video-feed-landscape { width: 50%; height: 100%; }
+
+            .right-panel {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                width: 20%;
+                padding-right: 20px;
+            }
+
+            .slider-horizontal { width: 100%; height: 30px; }
+        }
+
+        .debug-field {
+            background-color: #D3D3D3; /* Light Gray */
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+            display: none; /* Hidden by default */
+            width: 80%;
+            text-align: center;
+        }
+
+        /* --- PORTRAIT LAYOUT --- */
+        #portrait-container { display: none; }
+
+        @media (orientation: portrait) {
+            #landscape-container { display: none !important; }
+            #portrait-container {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                align-items: center;
+                height: 100dvh;
+                padding: 10px 20px;
+                box-sizing: border-box;
+            }
+            #fullscreenBtn { display: none; }
+            .video-feed-portrait { width: 100%; height: 40%; margin-top: 5px; }
+
+            .plus-joystick-container {
+                width: 200px;
+                height: 200px;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 80px;
+                touch-action: none;
+            }
+
+            .plus-joystick-container::before, 
+            .plus-joystick-container::after {
+                content: "";
+                position: absolute;
+                background: rgba(255, 255, 255, 0.15);
+                border-radius: 30px;
+                pointer-events: none;
+            }
+            .plus-joystick-container::before { width: 60px; height: 100%; }
+            .plus-joystick-container::after { height: 60px; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="master-stream-container" style="display: none;">
+        <img id="robot-stream" src="" alt="Robot Stream" onload="countFrame()">
+        <div id="fps-display" class="fps-counter">FPS: 0</div>
+    </div>
+
+    <div id="landscape-container">
+        <div class="left-panel">
+        <button class="btn" id="stream-btn-ls">Start Stream</button>
+        <div style="display: flex; gap: 5px;">
+            <button id="fullscreenBtn" class="ui-btn secondary">FULLSCREEN</button>
+            <button id="debugBtn" class="ui-btn secondary">Debug</button>
+        </div>
+        <div id="debug-display-ls" class="debug-field">X: 0, Y: 0</div>
+            <div class="joystick-track slider-vertical" id="ls-joy-left">
+                <div class="joystick-thumb" id="ls-thumb-left"></div>
+            </div>
+        </div>
+
+        <div class="video-feed video-feed-landscape" id="video-ls"></div>
+
+        <div class="right-panel">
+            <div class="joystick-track slider-horizontal" id="ls-joy-right">
+                <div class="joystick-thumb" id="ls-thumb-right"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="portrait-container">
+        <button class="btn" id="stream-btn-pt">Start Stream</button>
+        
+        <div class="video-feed video-feed-portrait" id="video-pt"></div>
+        <div id="debug-display-pt" class="debug-field">X: 0, Y: 0</div>
+
+        <div class="plus-joystick-container" id="pt-joy">
+            <div class="joystick-thumb" id="pt-thumb"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- Fullscreen Logic ---
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        fullscreenBtn.onclick = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                fullscreenBtn.innerText = "Exit Full";
+            } else {
+                document.exitFullscreen();
+                fullscreenBtn.innerText = "Fullscreen";
+            }
+        };
+
+        let debugEnabled = false;
+
+        // Toggle Debug Button
+        document.getElementById('debugBtn').onclick = () => {
+            debugEnabled = !debugEnabled;
+            const displays = [document.getElementById('debug-display-ls'), document.getElementById('debug-display-pt')];
+            displays.forEach(d => d.style.display = debugEnabled ? 'block' : 'none');
+            document.getElementById('debugBtn').style.backgroundColor = debugEnabled ? '#D3D3D3' : 'transparent';
+            document.getElementById('debugBtn').style.color = debugEnabled ? '#000' : '#FFF';
+        };
+
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+
+        function countFrame() {
+            if (!streamActive) return;
+
+            ++frameCount;
+
+            const currentTime = performance.now();
+            const elapsed = currentTime - lastFrameTime;
+
+            
+            // Update the display every 1 second
+            if (elapsed >= 1000) {
+                const fps = Math.round((frameCount * 1000) / elapsed);
+                document.getElementById('fps-display').innerText = `FPS: ${fps}`;
+                
+                // Reset for the next second
+                frameCount = 0;
+                lastFrameTime = currentTime;
+            }
+        }
+
+        // Move the image tag between containers based on orientation
+        function handleLayoutChange() {
+            const streamImg = document.getElementById('robot-stream');
+            const fpsDiv = document.getElementById('fps-display');
+            const lsTarget = document.getElementById('video-ls');
+            const ptTarget = document.getElementById('video-pt');
+            const master = document.getElementById('master-stream-container');
+
+            if (!streamActive) {
+                master.appendChild(streamImg);
+                master.appendChild(fpsDiv);
+                fpsDiv.style.display = 'none';
+                return;
+            }
+
+            fpsDiv.style.display = 'block';
+
+            const target = window.matchMedia("(orientation: landscape)").matches ? lsTarget : ptTarget;
+    
+            if (target) {
+                target.appendChild(streamImg);
+                target.appendChild(fpsDiv);
+            }
+        }
+
+        window.addEventListener("resize", handleLayoutChange);
+        window.addEventListener("orientationchange", handleLayoutChange);
+
+
+        // --- Throttled API Logic ---
+        let isSending = false;
+        let needsToSend = false;
+        let robotX = 0, robotY = 0;
+        let prevRobotX = 0, prevRobotY = 0;
+
+        async function triggerMove(x, y) {
+            robotX = x; // Math.round(x);
+            robotY = y; // Math.round(y);
+            if (debugEnabled) {
+                const statusStr = `X:${robotX.toFixed(4)}, Y:${robotY.toFixed(4)}`;
+                document.getElementById('debug-display-ls').innerText = statusStr;
+                document.getElementById('debug-display-pt').innerText = statusStr;
+            }
+            if (isSending) { needsToSend = true; return; }
+            isSending = true;
+            needsToSend = false;
+            try {
+                if(!(prevRobotX == robotX && prevRobotY == robotY)) {
+                    prevRobotX = robotX;
+                    prevRobotY = robotY
+                    console.log(`Sending: X:${robotX.toFixed(5)} Y:${robotY.toFixed(5)}`);
+                    await fetch(`/joystick?x=${robotX.toFixed(5)}&y=${robotY.toFixed(5)}`);
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+            } finally {
+                console.log(`Trigger move finallyX:${robotX.toFixed(5)} Y:${robotY.toFixed(5)}`)
+                isSending = false;
+                if (needsToSend) triggerMove(robotX, robotY);
+            }
+        }
+
+        // --- Stream Button Logic ---
+        const baseHost = document.location.origin;
+        // console.log(baseHost);
+
+
+        let streamActive = false;
+        const btns = [document.getElementById('stream-btn-ls'), document.getElementById('stream-btn-pt')];
+        btns.forEach(b => b.onclick = () => {
+            streamActive = !streamActive;
+            btns.forEach(btn => btn.innerText = streamActive ? "Stop Stream" : "Start Stream");
+            const view = document.getElementById('robot-stream');
+            view.src = streamActive ? '/stream' : '';
+            handleLayoutChange();
+            if(streamActive) {
+                lastFrameTime = performance.now();
+                // countFrame();
+            }
+        });
+
+        // --- Pointer-Based Joystick Logic ---
+        function setupJoystick(trackId, thumbId, axisRestraint, maxTravel = null) {
+            const track = document.getElementById(trackId);
+            const thumb = document.getElementById(thumbId);
+            
+            let isDragging = false;
+            let startPos = { x: 0, y: 0 };
+            let lockedAxis = axisRestraint;
+
+            // Handle Pointer Down (Mouse click or Touch)
+            thumb.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                thumb.classList.add('dragging');
+                startPos = { x: e.clientX, y: e.clientY };
+                
+                if (axisRestraint === 'auto') lockedAxis = null;
+                
+                // Keep receiving events even if pointer leaves the thumb/track
+                thumb.setPointerCapture(e.pointerId);
+            });
+
+            // Handle Pointer Move
+            thumb.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+
+                let deltaX = e.clientX - startPos.x;
+                let deltaY = e.clientY - startPos.y;
+                const travelLimit = maxTravel || (track.getBoundingClientRect().width / 2) - 25; 
+
+                if (lockedAxis === null) {
+                    const MULTIPLIER = 3;
+                    if (Math.abs(deltaX) > MULTIPLIER * Math.abs(deltaY)) {
+                        lockedAxis = 'x';
+                    } else if (Math.abs(deltaY) > MULTIPLIER * Math.abs(deltaX)) {
+                        lockedAxis = 'y';
+                    }
+            
+                }
+
+                if (lockedAxis === 'y') deltaX = 0;
+                if (lockedAxis === 'x') deltaY = 0;
+
+                deltaX = Math.max(-travelLimit, Math.min(travelLimit, deltaX));
+                deltaY = Math.max(-travelLimit, Math.min(travelLimit, deltaY));
+
+                thumb.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+                let pctX = (deltaX / travelLimit) ;
+                let pctY = -(deltaY / travelLimit) ; 
+
+                pctX *= 0.5; // scale x input for smooth control
+
+                if (axisRestraint === 'y') triggerMove(robotX, pctY);
+                else if (axisRestraint === 'x') triggerMove(pctX, robotY);
+                else triggerMove(pctX, pctY);
+            });
+
+            // Handle Pointer Up / Release
+            const stopDrag = (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                thumb.classList.remove('dragging');
+                thumb.style.transform = `translate(0px, 0px)`;
+                
+                if (axisRestraint === 'y') triggerMove(robotX, 0);
+                else if (axisRestraint === 'x') triggerMove(0, robotY);
+                else triggerMove(0, 0);
+
+                if (e) thumb.releasePointerCapture(e.pointerId);
+            };
+
+            thumb.addEventListener('pointerup', stopDrag);
+            thumb.addEventListener('pointercancel', stopDrag);
+        }
+
+        // Init Landscapes
+        setupJoystick('ls-joy-left', 'ls-thumb-left', 'y', 60); 
+        setupJoystick('ls-joy-right', 'ls-thumb-right', 'x', 60);
+
+        // Init Portrait
+        setupJoystick('pt-joy', 'pt-thumb', 'auto', 70);
+    </script>
+</body>
+</html>
