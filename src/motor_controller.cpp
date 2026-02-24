@@ -20,8 +20,8 @@ void motion_controller::input(float x, float y)
 	int x_sign = (x > 0) ? 1 : -1;
 	x_sign *= y_sign; 
 
-	left_speed = sqrt(abs(y_sign * y * y + x_sign * x * x)) * MAX_SPEED * left_sign;
-	right_speed = sqrt(abs(y_sign * y * y - x_sign * x * x)) * MAX_SPEED * right_sign;
+	left_speed = sqrt(abs(y_sign * y * y + x_sign * x * x)) * left_sign;
+	right_speed = sqrt(abs(y_sign * y * y - x_sign * x * x)) * right_sign;
 
 }
 
@@ -37,6 +37,16 @@ const char* driver_controller::get_debug_info()
 	oss << "L_in1 " << L_in1_speed << ", L_in2 " << L_in2_speed << ", R_in1 " << R_in1_speed << ", R_in2 " << R_in2_speed << "\n";
 	return oss.str().c_str();
 }
+
+const char* driver_controller::get_debug_voltage_info()
+{
+	std::ostringstream oss;
+	oss << "battery voltage: " << battery_voltage 
+		<< "\nmin speed: " << min_speed_value 
+		<< "\nthreshold speed: " << threshold_speed_value << "\n";
+	return oss.str().c_str();
+}
+
 
 void driver_controller::update_wheels_speed(float in_left_speed, float in_right_speed)
 {
@@ -55,8 +65,8 @@ void driver_controller::calculate_driver_values()
 	low_left = 0;
 	low_right = 0;
 
-	high_left = abs(left_speed);
-	high_right = abs(right_speed);
+	high_left = int(min_speed_value + speed_range * abs(left_speed));
+	high_right = int(min_speed_value + speed_range * abs(right_speed));
 
 	if (left_needs_starting_voltage)
 	{

@@ -232,6 +232,8 @@ void setup()
         Serial.print(localIp);
     }
     Serial.println("' to connect");
+
+    Serial.print(d_controller.get_debug_voltage_info());
 }
 
 void loop()
@@ -248,7 +250,7 @@ void loop()
         {
             d_controller.calculate_driver_values();
             d_controller.write_values_to_driver();
-            delay(200);
+            delay(100);
         }
 
         d_controller.calculate_driver_values();
