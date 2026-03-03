@@ -554,7 +554,7 @@ static esp_err_t index_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html");
     //    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     sensor_t *s = esp_camera_sensor_get();
-    const char *fileName = "/spiffs/index_ov2640.html";
+    const char *fileName = "/spiffs/index2.html";//_ov2640.html";
     Serial.println(s->id.PID);
     if (s->id.PID == OV3660_PID)
     {

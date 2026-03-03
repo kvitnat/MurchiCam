@@ -141,7 +141,7 @@ void setup()
     config.pin_sccb_scl = SIOC_GPIO_NUM;
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
-    config.xclk_freq_hz = 20000000;
+    config.xclk_freq_hz = 23000000;
     config.pixel_format = PIXFORMAT_JPEG;
     // init with high specs to pre-allocate larger buffers
     if (psramFound())
@@ -233,7 +233,6 @@ void setup()
     }
     Serial.println("' to connect");
 
-    Serial.print(d_controller.get_debug_voltage_info());
 }
 
 void loop()
@@ -241,16 +240,16 @@ void loop()
     if (m_controller.is_input_changed(joystick_x, joystick_y))
     {
         // calculate speed of each wheel 
-        m_controller.input(joystick_x, joystick_y);
+        auto speed = m_controller.input(joystick_x, joystick_y);
 
         // feed calculated values into driver controller
-        d_controller.update_wheels_speed(m_controller.get_left(), m_controller.get_right());
+        d_controller.set_speed(speed);
 
         if (d_controller.needs_starting_voltage())
         {
             d_controller.calculate_driver_values();
             d_controller.write_values_to_driver();
-            delay(100);
+            delay(50);
         }
 
         d_controller.calculate_driver_values();

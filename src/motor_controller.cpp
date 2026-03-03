@@ -5,7 +5,7 @@
 #include <string>
 #include "Arduino.h"
 
-void motion_controller::input(float x, float y)
+car_speed motion_controller::input(float x, float y)
 {
 	prev_x = x;
 	prev_y = y;
@@ -20,16 +20,16 @@ void motion_controller::input(float x, float y)
 	int x_sign = (x > 0) ? 1 : -1;
 	x_sign *= y_sign; 
 
-	left_speed = sqrt(abs(y_sign * y * y + x_sign * x * x)) * left_sign;
-	right_speed = sqrt(abs(y_sign * y * y - x_sign * x * x)) * right_sign;
+	float left_speed = sqrt(abs(y_sign * y * y + x_sign * x * x)) * left_sign;
+	float right_speed = sqrt(abs(y_sign * y * y - x_sign * x * x)) * right_sign;
 
+	return { left_speed, right_speed };
 }
 
 bool motion_controller::is_input_changed(float x, float y)
 {
 	return (x != prev_x) || (y != prev_y);
 }
-
 
 const char* driver_controller::get_debug_info()
 {
@@ -38,35 +38,30 @@ const char* driver_controller::get_debug_info()
 	return oss.str().c_str();
 }
 
-const char* driver_controller::get_debug_voltage_info()
+void driver_controller::set_speed(car_speed in_speed)
 {
-	std::ostringstream oss;
-	oss << "battery voltage: " << battery_voltage 
-		<< "\nmin speed: " << min_speed_value 
-		<< "\nthreshold speed: " << threshold_speed_value << "\n";
-	return oss.str().c_str();
-}
-
-
-void driver_controller::update_wheels_speed(float in_left_speed, float in_right_speed)
-{
-	left_speed = in_left_speed;
-	right_speed = in_right_speed;
+	speed_ = in_speed;
 }
 
 void driver_controller::calculate_driver_values()
 {
-	int& high_left = left_speed > 0 ? L_in1_speed : L_in2_speed;
-	int& low_left = !(left_speed > 0) ? L_in1_speed : L_in2_speed;
+	int& high_left = speed_.left > 0 ? L_in1_speed : L_in2_speed;
+	int& low_left = !(speed_.left > 0) ? L_in1_speed : L_in2_speed;
 
-	int& high_right = right_speed > 0 ? R_in1_speed : R_in2_speed;
-	int& low_right = !(right_speed > 0) ? R_in1_speed : R_in2_speed;
+	int& high_right = speed_.right > 0 ? R_in1_speed : R_in2_speed;
+	int& low_right = !(speed_.right > 0) ? R_in1_speed : R_in2_speed;
 
 	low_left = 0;
 	low_right = 0;
+	high_left = int(min_speed_value + speed_range * abs(speed_.left));
+	high_right = int(min_speed_value + speed_range * abs(speed_.right));
 
-	high_left = int(min_speed_value + speed_range * abs(left_speed));
-	high_right = int(min_speed_value + speed_range * abs(right_speed));
+	if (abs(speed_.left) < 0.1)
+		high_left = 0;
+	
+	if (abs(speed_.right) < 0.1)
+		high_right = 0;
+
 
 	if (left_needs_starting_voltage)
 	{
@@ -80,8 +75,8 @@ void driver_controller::calculate_driver_values()
 		right_needs_starting_voltage = false;
 	}
 
-	prev_state_left  = get_state_from_speed(left_speed);
-	prev_state_right = get_state_from_speed(right_speed);
+	prev_state_left  = get_state_from_speed(speed_.left);
+	prev_state_right = get_state_from_speed(speed_.right);
 
 }
 
@@ -97,15 +92,15 @@ motion_state driver_controller::get_state_from_speed(float speed)
 
 bool driver_controller::needs_starting_voltage()
 {	
-	motion_state state_left  = get_state_from_speed(left_speed);
-	motion_state state_right = get_state_from_speed(right_speed);
+	motion_state state_left  = get_state_from_speed(speed_.left);
+	motion_state state_right = get_state_from_speed(speed_.right);
 	
 	left_needs_starting_voltage = prev_state_left != state_left && 
 								  state_left != motion_state::Still && 
-								  abs(left_speed) < threshold_speed_value;
+								  abs(speed_.left) < threshold_speed_value;
 	right_needs_starting_voltage = prev_state_right != state_right && 
 								   state_right != motion_state::Still && 
-								   abs(right_speed) < threshold_speed_value;
+								   abs(speed_.right) < threshold_speed_value;
 
 	return left_needs_starting_voltage || right_needs_starting_voltage;
 }
@@ -131,42 +126,3 @@ void driver_controller::init_driver_pins()
     ledcAttachPin(A2, A2);
     ledcAttachPin(A3, A3);
 }
-
-/*
-void motion_controller::input_smooth_turn(float x, float y)
-{
-	prev_x = x;
-	prev_y = y;
-	int speed = sqrt(x*x + y*y) * MAX_SPEED;
-
-	// t is joystick angle / (pi/2)
-	float t = 1;
-	if (x != 0)
-		t = atan(abs(float(y) / float(x))) / (M_PI / 2);
-
-
-	bool dir = y > 0;
-
-	int& high_left = dir ? LIn1_speed : LIn2_speed;
-	int& low_left = !dir ? LIn1_speed : LIn2_speed;
-
-	int& high_right = dir ? RIn1_speed : RIn2_speed;
-	int& low_right = !dir ? RIn1_speed : RIn2_speed;
-
-	low_left = 0;
-	low_right = 0;
-
-	high_left = speed;
-	high_right = speed;
-
-	if (x >= 0)
-	{
-		high_right *= t;
-	}
-	else
-	{
-		high_left *= t;
-	}
-	
-}
-*/

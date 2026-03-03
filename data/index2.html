@@ -362,7 +362,7 @@
         // --- Stream Button Logic ---
         const baseHost = document.location.origin;
         // console.log(baseHost);
-
+        var streamUrl = baseHost + ':81'
 
         let streamActive = false;
         const btns = [document.getElementById('stream-btn-ls'), document.getElementById('stream-btn-pt')];
@@ -370,7 +370,7 @@
             streamActive = !streamActive;
             btns.forEach(btn => btn.innerText = streamActive ? "Stop Stream" : "Start Stream");
             const view = document.getElementById('robot-stream');
-            view.src = streamActive ? '/stream' : '';
+            view.src = streamActive ? `${streamUrl}/stream` : '';
             handleLayoutChange();
             if(streamActive) {
                 lastFrameTime = performance.now();
