@@ -174,11 +174,13 @@ static esp_err_t capture_handler(httpd_req_t *req)
 
 static esp_err_t stream_handler(httpd_req_t *req)
 {
+    Serial.println("stream_handler");
+
     camera_fb_t *fb = NULL;
     esp_err_t res = ESP_OK;
     size_t _jpg_buf_len = 0;
     uint8_t *_jpg_buf = NULL;
-    char *part_buf[64];
+    char part_buf[64];
     //dl_matrix3du_t *image_matrix = NULL;
     bool detected = false;
     int face_id = 0;
@@ -238,20 +240,18 @@ static esp_err_t stream_handler(httpd_req_t *req)
                     _jpg_buf = fb->buf;
                 }
             }
-            else
-            {
-                
-            }
         }
         if (res == ESP_OK)
         {
-            size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
+            size_t hlen = snprintf(part_buf, 64, _STREAM_PART, _jpg_buf_len);
             res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
         }
+        
         if (res == ESP_OK)
         {
             res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
         }
+        
         if (res == ESP_OK)
         {
             res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
@@ -289,6 +289,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
                       avg_frame_time, 1000.0 / avg_frame_time,
                       (uint32_t)ready_time, (uint32_t)face_time, (uint32_t)recognize_time, (uint32_t)encode_time, (uint32_t)process_time,
                       (detected) ? "DETECTED " : "", face_id);
+    
     }
 
     last_frame = 0;

@@ -6,33 +6,18 @@
 #include <ArduinoJson.h>
 #include "motor_controller.h"
 #include <vector>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include "display.h"
+#include <sstream>
+#include <iomanip>
+#include <string>
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-
-#define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-// 'wifi_icon', 12x12px
-const unsigned char wifi_icon [] = {
-	0x00, 0xf0, 0x03, 0x80, 0x0e, 0x00, 0x18, 0x30, 0x30, 0xe0, 0x61, 0x80, 0x47, 0x00, 0xc4, 0x30, 
-	0x8c, 0xe0, 0x88, 0x80, 0x99, 0xb0, 0x91, 0x30};
-
-// Select camera model
-// #define CAMERA_MODEL_WROVER_KIT
-// #define CAMERA_MODEL_ESP_EYE
-// #define CAMERA_MODEL_M5STACK_PSRAM
-// #define CAMERA_MODEL_M5STACK_WIDE
-// #define CAMERA_MODEL_AI_THINKER
 #define CAMERA_MODEL_XIAO_ESP32S3
 
 #include "camera_pins.h"
 #include "esp32-hal-ledc.h"
 
-
+float bat_level = 3.3f;
+int count = 1;
 
 float joystick_x = 0;
 float joystick_y = 0;
@@ -42,22 +27,7 @@ void startCameraServer();
 motion_controller m_controller;
 driver_controller d_controller;
 
-void initTextStyle()
-{
-    display.setTextSize(1);      // Normal 1:1 pixel scale
-    display.setTextColor(WHITE); // Draw white text
-    display.setCursor(0, 16);     // Start at top-left corner
-    display.cp437(true);         // Use full 256 char 'Code Page 437' font
-}
-
-void printLineToScreen(const char* str, int size)
-{
-    for (int16_t i = 0; i < size; i++)
-        display.write(str[i]);
-    
-    display.write('\n');
-    display.display();
-}
+display my_display;
 
 void setup()
 {
@@ -65,25 +35,17 @@ void setup()
     Serial.setDebugOutput(true);
     Serial.println();
 
-    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
-    {
-        Serial.println(F("SSD1306 allocation failed"));
-    }
-
-    display.clearDisplay();
-    display.display();
-    initTextStyle();
+    delay(5000);
+    my_display.initDisplay();
 
     d_controller.init_driver_pins();
-    
+    pinMode(A8, INPUT);
+
     pinMode(BUILTIN_LED, OUTPUT);
     digitalWrite(BUILTIN_LED, LOW);
     delay(1000);
-
     digitalWrite(BUILTIN_LED, HIGH);
-
-    delay(7000);
+    delay(1000);
 
     if (!SPIFFS.begin(true))
     {
@@ -120,6 +82,7 @@ void setup()
 
         configFile.close();
     }
+    
     SPIFFS.end();
 
     camera_config_t config;
@@ -200,11 +163,9 @@ void setup()
     IPAddress localIp = WiFi.localIP();
     Serial.println(localIp);
 
-    display.drawBitmap(112, 0, wifi_icon, 12, 12, WHITE);
-
-    printLineToScreen("WiFi CONNECTED", 15);
-    printLineToScreen("", 0);
-    printLineToScreen(localIp.toString().c_str(), localIp.toString().length());
+    my_display.drawWifiSymbol();
+    my_display.printLineToScreen(localIp.toString().c_str());
+    my_display.printLineToScreen("");
 
     int responderStarted = 0;
     if (!MDNS.begin(responderName))
@@ -237,6 +198,23 @@ void setup()
 
 void loop()
 {
+    float new_value = analogRead(A8) * 3.3f / 4095; // 2.02439 is how voltage is divided across resistors
+    new_value = std::round(new_value * 100.0f) / 100.0f;
+    bat_level += (new_value - bat_level) / count++;
+    if (count == 10000) count = 1;
+    
+    //if (new_value != bat_level)
+    {
+        //bat_level = new_value;
+        my_display.clearArea(0, 16, 64, 32);
+        my_display.setCursor(0, 16);
+        std::stringstream stream;
+        stream << std::fixed << std::setprecision(2) << bat_level << " V";
+        
+        my_display.printLineToScreen(stream.str().c_str());
+    }
+
+
     if (m_controller.is_input_changed(joystick_x, joystick_y))
     {
         // calculate speed of each wheel 
