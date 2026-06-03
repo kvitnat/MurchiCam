@@ -43,17 +43,13 @@ void display::setCursor(int x, int y)
 	display_->setCursor(x, y);
 }
 
-//void display::printLineToScreen(const char* str)
-//{
-//    int i = 0;
-//    while(str[i] != '\0')
-//    {
-//        display_->write(str[i++]);
-//    }
-//
-//    display_->write('\n');
-//    display_->display();
-//}
+void display::printBatteryInfo(const std::string& str)
+{
+    clearArea(0, 16, 128, 32);
+    setCursor(0, 16);
+    printLineToScreen(str);
+}
+
 
 void display::printLineToScreen(const std::string& str)
 {

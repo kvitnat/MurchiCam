@@ -4,15 +4,15 @@
 #include <FS.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
-#include "motor_controller.h"
 #include <vector>
-#include "display.h"
-#include <sstream>
-#include <iomanip>
 #include <string>
 
-#define CAMERA_MODEL_XIAO_ESP32S3
+#include "display.h"
+#include "motor_controller.h"
+#include "battery_info.h"
 
+
+#define CAMERA_MODEL_XIAO_ESP32S3
 #include "camera_pins.h"
 #include "esp32-hal-ledc.h"
 
@@ -28,6 +28,11 @@ motion_controller m_controller;
 driver_controller d_controller;
 
 display my_display;
+battery_info battery;
+
+IPAddress local_IP(192, 168, 5, 111);
+IPAddress gateway(192, 168, 5, 1);
+IPAddress subnet(255, 255, 255, 0);
 
 void setup()
 {
@@ -53,8 +58,8 @@ void setup()
         return;
     }
 
-    const char *ssid = "bvd23";
-    const char *key = "5164g77r8c";
+    const char *ssid = "my_ssid";
+    const char *key = "my_key";
     const char *responderName = "espcam";
 
     File configFile = SPIFFS.open("/config.json", "r");
@@ -149,6 +154,9 @@ void setup()
     s->set_hmirror(s, 1);
 #endif
 
+    if (!WiFi.config(local_IP, gateway, subnet))
+        Serial.println("STA Failed to configure");
+    
     WiFi.begin(ssid, key);
 
     while (WiFi.status() != WL_CONNECTED)
@@ -164,8 +172,7 @@ void setup()
     Serial.println(localIp);
 
     my_display.drawWifiSymbol();
-    my_display.printLineToScreen(std::string(localIp.toString().c_str()));
-    my_display.printLineToScreen("");
+    my_display.printLineToScreen(std::string(localIp.toString().c_str()) + "\n");
 
     int responderStarted = 0;
     if (!MDNS.begin(responderName))
@@ -198,22 +205,7 @@ void setup()
 
 void loop()
 {
-    float new_value = analogRead(A8) * 3.3f / 4095; // 2.02439 is how voltage is divided across resistors
-    new_value = std::round(new_value * 100.0f) / 100.0f;
-    bat_level += (new_value - bat_level) / count++;
-    if (count == 10000) count = 1;
-    
-    //if (new_value != bat_level)
-    {
-        //bat_level = new_value;
-        my_display.clearArea(0, 16, 64, 32);
-        my_display.setCursor(0, 16);
-        std::stringstream stream;
-        stream << std::fixed << std::setprecision(2) << bat_level << " V";
-        
-        my_display.printLineToScreen(stream.str());
-    }
-
+    my_display.printBatteryInfo(battery.get_battery_string(analogRead(A8)));
 
     if (m_controller.is_input_changed(joystick_x, joystick_y))
     {

@@ -17,8 +17,9 @@ public:
 
 	void setCursor(int x, int y);
 	void drawWifiSymbol();
-	//void printLineToScreen(const char* str);
+
 	void printLineToScreen(const std::string& str);
+	void printBatteryInfo(const std::string& str);
 
 	void clearArea(int x1, int y1, int x2, int y2);
 };
