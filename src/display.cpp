@@ -43,19 +43,29 @@ void display::setCursor(int x, int y)
 	display_->setCursor(x, y);
 }
 
-void display::printLineToScreen(const char* str)
-{
-    int i = 0;
-    while(str[i] != '\0')
-    {
-        display_->write(str[i++]);
-    }
+//void display::printLineToScreen(const char* str)
+//{
+//    int i = 0;
+//    while(str[i] != '\0')
+//    {
+//        display_->write(str[i++]);
+//    }
+//
+//    display_->write('\n');
+//    display_->display();
+//}
 
+void display::printLineToScreen(const std::string& str)
+{
+    for (const char& ch : str)
+        display_->write(ch);
+    
     display_->write('\n');
     display_->display();
 }
 
-void display::clearArea(short x1, short y1, short x2, short y2)
+
+void display::clearArea(int x1, int y1, int x2, int y2)
 {
     for (int i = x1; i < x2; i++)
         for (int j = y1; j < y2; j++)

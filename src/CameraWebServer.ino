@@ -164,7 +164,7 @@ void setup()
     Serial.println(localIp);
 
     my_display.drawWifiSymbol();
-    my_display.printLineToScreen(localIp.toString().c_str());
+    my_display.printLineToScreen(std::string(localIp.toString().c_str()));
     my_display.printLineToScreen("");
 
     int responderStarted = 0;
@@ -211,7 +211,7 @@ void loop()
         std::stringstream stream;
         stream << std::fixed << std::setprecision(2) << bat_level << " V";
         
-        my_display.printLineToScreen(stream.str().c_str());
+        my_display.printLineToScreen(stream.str());
     }
 
 
