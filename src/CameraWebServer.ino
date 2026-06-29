@@ -30,8 +30,8 @@ driver_controller d_controller;
 display my_display;
 battery_info battery;
 
-IPAddress local_IP(192, 168, 5, 111);
-IPAddress gateway(192, 168, 5, 1);
+IPAddress local_IP(192, 168, 88, 111);
+IPAddress gateway(192, 168, 88, 1);
 IPAddress subnet(255, 255, 255, 0);
 
 void setup()
