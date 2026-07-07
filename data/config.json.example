@@ -1,0 +1,5 @@
+{
+	"ssid" : "wifi_name",
+	"key" : "wifi_key",
+	"mDNS": "murchicam"
+}
